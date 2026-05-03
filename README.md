@@ -10,7 +10,8 @@
 | `blog/` | [katatsumuri-work/blog](https://github.com/katatsumuri-work/blog) | public | Tech blog (Hugo) |
 | `web/` | [katatsumuri-work/web](https://github.com/katatsumuri-work/web) | public | Frontend (Astro / TBD) |
 | `infra/` | [katatsumuri-work/infra](https://github.com/katatsumuri-work/infra) | private | Infrastructure as Code, deployment configs, secrets |
-| `.github/` | [katatsumuri-work/.github](https://github.com/katatsumuri-work/.github) | public | Organization profile README |
+
+org プロフィール用の [`katatsumuri-work/.github`](https://github.com/katatsumuri-work/.github) は独立して存在しており、本 repo の submodule には含めていません（各 repo の `.github/workflows/` と項目名が衝突するため）。
 
 ## Clone
 
