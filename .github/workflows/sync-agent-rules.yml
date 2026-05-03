@@ -1,12 +1,18 @@
 name: Sync agent rules to children
 
 # 親 repo の AGENTS.md / CLAUDE.md / GEMINI.md / .github/copilot-instructions.md
-# が更新された時、各子 repo（api / blog / web / infra）に同じ内容を反映する。
+# が更新された時、各子 repo（api / blog / web / infra）に同じ内容を PR 経由で反映する。
 #
-# 設計方針: 親が正本（Single Source of Truth）。子で編集したい場合は親に PR。
+# 設計方針:
+#   - 親が正本（Single Source of Truth）。子で編集したい場合は親に PR
+#   - 子 repo の main にも保護ルール（PR 必須・linear history・admin enforce）が
+#     入っているため、直 push ではなく PR を作成してその場で squash merge する
+#   - 子 repo 全体での auto-merge 機能は有効化していない（人間の通常 PR で誤爆
+#     しないため）。bot は PR API を直接叩いて即 merge する
 #
 # 必要な secret:
-#   SYNC_PAT - 各子 repo に push できる PAT（Contents: read/write）
+#   SYNC_PAT - 各子 repo に push & PR 作成できる PAT
+#              （Contents: read/write, Pull requests: read/write）
 #   詳しくは README.md の「AI エージェントルールの sync」を参照。
 
 on:
@@ -47,15 +53,34 @@ jobs:
           mkdir -p child/.github
           cp parent/.github/copilot-instructions.md child/.github/copilot-instructions.md
 
-      - name: Commit and push if changed
+      - name: Create sync branch, open PR, and squash merge immediately
         working-directory: child
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
+          PARENT_SHA: ${{ github.sha }}
         run: |
+          set -euo pipefail
+
           if [[ -z "$(git status --porcelain)" ]]; then
-            echo "変更なし、push スキップ"
+            echo "変更なし、PR スキップ"
             exit 0
           fi
+
+          SHORT_SHA="${PARENT_SHA:0:7}"
+          BRANCH="chore/sync-agent-rules-${SHORT_SHA}"
+
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
           git add AGENTS.md CLAUDE.md GEMINI.md .github/copilot-instructions.md
-          git commit -m "Sync agent rules from parent repo"
-          git push
+          git commit -m "親 repo の AI エージェントルールを sync (parent ${SHORT_SHA})"
+          git push -u origin "$BRANCH"
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore: AI エージェントルールを親 repo から sync (${SHORT_SHA})" \
+            --body "親 repo katatsumuri-work/katatsumuri-work@${PARENT_SHA} の AGENTS.md / CLAUDE.md / GEMINI.md / .github/copilot-instructions.md を反映するための自動 PR です。作成と同時に squash merge されます。")
+
+          echo "Created PR: $PR_URL"
+          gh pr merge "$PR_URL" --squash --delete-branch
