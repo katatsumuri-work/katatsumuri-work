@@ -1,0 +1,15 @@
+[submodule "api"]
+	path = api
+	url = git@github.com:katatsumuri-work/api.git
+[submodule "blog"]
+	path = blog
+	url = git@github.com:katatsumuri-work/blog.git
+[submodule "web"]
+	path = web
+	url = git@github.com:katatsumuri-work/web.git
+[submodule "infra"]
+	path = infra
+	url = git@github.com:katatsumuri-work/infra.git
+[submodule ".github"]
+	path = .github
+	url = git@github.com:katatsumuri-work/.github.git
