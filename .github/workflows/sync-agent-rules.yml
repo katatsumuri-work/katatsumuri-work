@@ -1,0 +1,61 @@
+name: Sync agent rules to children
+
+# 親 repo の AGENTS.md / CLAUDE.md / GEMINI.md / .github/copilot-instructions.md
+# が更新された時、各子 repo（api / blog / web / infra）に同じ内容を反映する。
+#
+# 設計方針: 親が正本（Single Source of Truth）。子で編集したい場合は親に PR。
+#
+# 必要な secret:
+#   SYNC_PAT - 各子 repo に push できる PAT（Contents: read/write）
+#   詳しくは README.md の「AI エージェントルールの sync」を参照。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'GEMINI.md'
+      - '.github/copilot-instructions.md'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: [api, blog, web, infra]
+    steps:
+      - name: Checkout parent
+        uses: actions/checkout@v4
+        with:
+          path: parent
+
+      - name: Checkout child (${{ matrix.repo }})
+        uses: actions/checkout@v4
+        with:
+          repository: katatsumuri-work/${{ matrix.repo }}
+          token: ${{ secrets.SYNC_PAT }}
+          path: child
+
+      - name: Copy files
+        run: |
+          cp parent/AGENTS.md child/AGENTS.md
+          cp parent/CLAUDE.md child/CLAUDE.md
+          cp parent/GEMINI.md child/GEMINI.md
+          mkdir -p child/.github
+          cp parent/.github/copilot-instructions.md child/.github/copilot-instructions.md
+
+      - name: Commit and push if changed
+        working-directory: child
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "変更なし、push スキップ"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add AGENTS.md CLAUDE.md GEMINI.md .github/copilot-instructions.md
+          git commit -m "Sync agent rules from parent repo"
+          git push
