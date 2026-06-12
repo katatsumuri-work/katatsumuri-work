@@ -1,0 +1,83 @@
+name: Bump submodule pointers
+
+# 各子 repo（api / blog / web / infra）の main が進んだとき、親 repo の
+# submodule pointer を自動で最新へ追従させる。定期実行で全 submodule を
+# まとめて確認し、変化があれば PR を作成してその場で squash merge する。
+# （手動の「pointer 追従 PR」を不要にするのが目的）
+#
+# 設計:
+#   - 親 main は保護済み（PR 必須・linear・承認0件）なので直 push せず
+#     PR 作成 → 即 squash merge する（既存 sync-agent-rules.yml と同じ作法）
+#   - 親 repo の checkout / PR / merge は GITHUB_TOKEN（親へのアクセス権を持つ）
+#   - submodule の fetch は SYNC_PAT（private な infra を含む子 repo の read 用）
+#
+# 必要な secret:
+#   SYNC_PAT - 子 repo（api/blog/web/infra）を read できる PAT（既存・README 参照）
+
+on:
+  schedule:
+    - cron: '*/30 * * * *' # 30分ごと（GitHub の都合で多少遅延することがある）
+  workflow_dispatch: # 手動即時実行（子 PR をマージ直後にすぐ反映したいとき）
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: bump-submodule-pointers
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout parent (submodule は手動で取得)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+
+      - name: Configure git auth for child repos (SYNC_PAT)
+        run: |
+          # .gitmodules は SSH URL のため、SYNC_PAT 付き https へ書き換えて fetch する
+          git config --global url."https://x-access-token:${SYNC_PAT}@github.com/".insteadOf "git@github.com:"
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+
+      - name: Update submodules to remote main
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --remote --recursive
+
+      - name: Open PR and squash merge if pointers changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "submodule pointer に変化なし。スキップ。"
+            exit 0
+          fi
+
+          echo "変化した submodule:"
+          git status --porcelain
+
+          STAMP="$(date -u +%Y%m%d-%H%M%S)"
+          BRANCH="chore/auto-bump-submodule-pointers-${STAMP}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add api blog web infra
+          git commit -m "chore: submodule pointer を各子 repo の最新 main に自動追従 (${STAMP})"
+          git push -u origin "$BRANCH"
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore: submodule pointer を最新 main に自動追従 (${STAMP})" \
+            --body "各子 repo（api / blog / web / infra）の最新 main に submodule pointer を追従する自動 PR です。作成と同時に squash merge されます。")
+
+          echo "Created PR: ${PR_URL}"
+          gh pr merge "$PR_URL" --squash --delete-branch

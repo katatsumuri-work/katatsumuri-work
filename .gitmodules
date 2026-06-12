@@ -1,12 +1,16 @@
 [submodule "api"]
 	path = api
 	url = git@github.com:katatsumuri-work/api.git
+	branch = main
 [submodule "blog"]
 	path = blog
 	url = git@github.com:katatsumuri-work/blog.git
+	branch = main
 [submodule "web"]
 	path = web
 	url = git@github.com:katatsumuri-work/web.git
+	branch = main
 [submodule "infra"]
 	path = infra
 	url = git@github.com:katatsumuri-work/infra.git
+	branch = main
