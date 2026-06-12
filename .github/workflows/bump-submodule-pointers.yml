@@ -8,11 +8,14 @@ name: Bump submodule pointers
 # 設計:
 #   - 親 main は保護済み（PR 必須・linear・承認0件）なので直 push せず
 #     PR 作成 → 即 squash merge する（既存 sync-agent-rules.yml と同じ作法）
-#   - 親 repo の checkout / PR / merge は GITHUB_TOKEN（親へのアクセス権を持つ）
-#   - submodule の fetch は SYNC_PAT（private な infra を含む子 repo の read 用）
+#   - 親 repo の checkout / branch push は GITHUB_TOKEN
+#   - PR 作成 / merge は SYNC_PAT を使用。org が GITHUB_TOKEN による PR 作成を
+#     禁止しているため（"GitHub Actions is not permitted to create or approve PRs"）
+#   - submodule の fetch も SYNC_PAT（private な infra を含む子 repo 用）
 #
 # 必要な secret:
-#   SYNC_PAT - 子 repo（api/blog/web/infra）を read できる PAT（既存・README 参照）
+#   SYNC_PAT - 親 + 子 repo（api/blog/web/infra）に Contents:write / Pull requests:write
+#              を持つ PAT。親 repo を対象に追加すること（README 参照）。
 
 on:
   schedule:
@@ -51,7 +54,8 @@ jobs:
 
       - name: Open PR and squash merge if pointers changed
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PR 作成 / merge は SYNC_PAT（GITHUB_TOKEN は org ポリシーで PR 作成不可）
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
         run: |
           set -euo pipefail
 
