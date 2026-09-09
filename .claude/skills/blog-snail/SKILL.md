@@ -1,6 +1,6 @@
 ---
 name: blog-snail
-description: カタツムリワークスの blog（Hugo）記事を下書きする。~/memo の daily_report / project memo や ~/PROJECTS の実装を元ネタに、機密をぼかし・媒体トーンに整え・frontmatter を付けて blog/content/posts に書き出し、codex / copilot / 別の claude の3者に「編集者」として構成・言い回し・内容をレビューさせてから反映し、hugo 検証・ブランチ・PR まで通す。「記事化して」「blog ネタを記事に」「blog.snail」「稼働ログをブログに」などで使う。
+description: カタツムリワークスの blog（Hugo）記事を下書きする。~/memo の daily_report / project memo や ~/PROJECTS の実装を元ネタに、機密をぼかし・媒体トーンに整え・frontmatter を付けて blog/content/posts に書き出し、agy / codex / copilot / 別の claude といった別 LLM に「編集者」として構成・言い回し・内容をレビューさせてから反映し、hugo 検証・ブランチ・PR まで通す。「記事化して」「blog ネタを記事に」「blog.snail」「稼働ログをブログに」などで使う。
 ---
 
 # blog.snail ― 技術メモを編集者レビュー付きでブログ記事化する
@@ -13,6 +13,7 @@ description: カタツムリワークスの blog（Hugo）記事を下書きす�
 - 記事の置き場: `blog/content/posts/YYYY-MM-DD-{slug}.md`
 - パーマリンク: `/:year/:month/:day/:slug/`。**未来日の記事は Hugo 既定で当日まで非表示**（＝日付を振れば連日公開に使える）
 - 規約は親 repo の `AGENTS.md`（言語＝日本語、トーン、ブランチ戦略、コミット前チェック）に従う
+- **公開は自動**。blog repo の `.github/workflows/deploy.yml` が main への push と日次（JST 09:05）で Firebase Hosting へデプロイする。マージすれば手動デプロイは不要で、未来日の記事も当日の日次ビルドで自動的に出る
 
 作業前に必ず、既存記事を1〜2本読んでトーンを合わせること（`blog/content/posts/` の直近記事）。
 
@@ -44,7 +45,7 @@ description: カタツムリワークスの blog（Hugo）記事を下書きす�
 title: '…'
 slug: '…'                 # 英小文字・ハイフン
 date: YYYY-MM-DDT09:00:00+09:00   # 時刻+TZ 必須。tech は 09:00 が既定
-categories: ['tech']      # tech | zatsudan
+categories: ['tech']      # tech | zatsudan | yomoyamo
 tags: ['…']               # 小文字スラッグ。言語/FW/ツール名
 draft: false              # 先積み運用なら false + 未来日。純粋な下書きなら true
 ---
@@ -61,6 +62,10 @@ draft: false              # 先積み運用なら false + 未来日。純粋な�
 ### 7. 検証（hugo）
 `cd blog && hugo --gc --minify` がエラーなく完走することを確認する。今日以前の日付なら `public/.../index.html` が生成されることも確認する。
 
+**未来日で先積みする場合**は `hugo --gc --minify --buildFuture` で、その記事が実際にビルドできること（ショートコードや `ref` の解決を含む）を確認する。`--buildFuture` を付けない通常ビルドで**その記事が出ない**ことも、あわせて確認しておくと安心。
+
+記事内で引用したコードや設定値は、**引用元の実ファイルと突き合わせて一致を確認する**。参考 URL は `curl -o /dev/null -s -w '%{http_code}' -L <url>` で 200 を確認する（ドキュメントの URL は移動していることがある）。
+
 ### 8. ブランチ → PR
 - `main` 直コミット禁止。`feat/…` などのブランチを切る（記事なら `feat/post-<slug>` を目安に）
 - 記事は blog submodule 側の変更 → **blog repo でブランチ・commit・PR**（親の submodule pointer は自動追従ワークフローに任せる）
@@ -74,9 +79,13 @@ draft: false              # 先積み運用なら false + 未来日。純粋な�
 
 | レビュアー | 割り当てロール（{{REVIEWER_ROLE}}） | CLI |
 |---|---|---|
+| agy（Antigravity） | 校閲担当（事実確認・表記ゆれ・機密漏れ重視） | `agy` スキル経由 |
 | claude（別インスタンス） | 書籍の編集者（構成・内容の深さ重視） | `claude -p` |
 | copilot | 技術雑誌の編集者（言い回し・読みやすさ重視） | `copilot -p … --allow-all-tools` |
 | codex | 校閲担当（事実確認・表記ゆれ・機密漏れ重視） | `codex exec -a never …` |
+
+3者そろえるのが基本だが、**動くものから使えばよい**。実績として `agy` に校閲ロールを振ると、
+記事と実装の食い違い（後述）まで拾えた。`codex` が落ちる環境ではその枠を `agy` で埋めるとよい。
 
 ### 手順
 1. レビュアーごとに、`references/editorial-review-prompt.md` の `{{REVIEWER_ROLE}}` と `{{ARTICLE}}`（記事 md 全文）を差し替えたプロンプトを、スクラッチパッドに一時ファイルとして書き出す（パス依存を避けるため本文はインラインで埋める）。
@@ -96,6 +105,21 @@ codex   exec -a never "$(cat "$DIR/prompt-codex.txt")"             > "$DIR/out-c
 - **既知**: `codex` は環境によって native バイナリ欠損（ENOENT）で落ちることがある。落ちたらスキップでよい（要再インストールは別途）。
 - 最低1者のレビューが取れれば反映に進む。**全滅した場合のみ**ユーザーに知らせて指示を仰ぐ。
 - レビュアーはあくまで**別の LLM**を使うのが目的（外部の目）。この Claude 自身の自己添削で代替しない。
+
+### 素材が古いことがある（実績のある落とし穴）
+
+レビューで最も価値があったのは、**記事の記述と実装の現状が食い違っている**という指摘だった。
+
+2026-09-09 に、あるツールの紹介記事で「この機能はこれから実装する」と書いたが、実際にはすでに
+実装済みだった。原因は、素材にした repo の README の一部（「現在の制約」節）が更新されずに
+古いまま残っており、それを信じたこと。README の別の節には実装済みの使い方が書いてあり、
+**同じファイルの中で情報が食い違っていた**。
+
+対策として、手順1で素材を読むときは次を確認する。
+
+- README や memo の記述を鵜呑みにせず、**`git log` で直近のコミットを見る**（実装が先行していることがある）
+- 「まだ〜していない」「これから〜する」と書くときは、**実装ファイルの有無やコマンドの存在を実際に確かめる**
+- 素材の repo が別セッションで並行して動いている場合は特に注意する（執筆中に実装が進むことがある）
 
 ## 完了時にユーザーへ返すもの
 - 生成した記事のパスとタイトル
