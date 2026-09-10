@@ -19,7 +19,13 @@ name: Bump submodule pointers
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # 30分ごと（GitHub の都合で多少遅延することがある）
+    # 30分ごと。ただし「毎時 0 分ちょうど」は避ける（14分・42分）。
+    # GitHub が明言している通り、高負荷時に schedule は遅延し、混雑がひどいと
+    # ジョブごと drop される。そして高負荷帯は "the start of every hour"。
+    #   https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
+    # 2026-09-10 に blog 側の cron '5 0 * * *' が発火せず記事が公開されない
+    # 事故が起きたため、こちらも 0 分帯から外した。
+    - cron: '14,42 * * * *'
   workflow_dispatch: # 手動即時実行（子 PR をマージ直後にすぐ反映したいとき）
 
 permissions:
