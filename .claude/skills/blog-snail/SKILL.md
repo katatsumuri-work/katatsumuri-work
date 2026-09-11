@@ -82,7 +82,7 @@ draft: false              # 先積み運用なら false + 未来日。純粋な�
 | agy（Antigravity） | 校閲担当（事実確認・表記ゆれ・機密漏れ重視） | `agy` スキル経由 |
 | claude（別インスタンス） | 書籍の編集者（構成・内容の深さ重視） | `claude -p` |
 | copilot | 技術雑誌の編集者（言い回し・読みやすさ重視） | `copilot -p … --allow-all-tools` |
-| codex | 校閲担当（事実確認・表記ゆれ・機密漏れ重視） | `codex exec -a never …` |
+| codex | 校閲担当（事実確認・表記ゆれ・機密漏れ重視） | `codex exec -s read-only --skip-git-repo-check …` |
 
 3者そろえるのが基本だが、**動くものから使えばよい**。実績として `agy` に校閲ロールを振ると、
 記事と実装の食い違い（後述）まで拾えた。`codex` が落ちる環境ではその枠を `agy` で埋めるとよい。
@@ -93,16 +93,30 @@ draft: false              # 先積み運用なら false + 未来日。純粋な�
 
 ```bash
 # 例（スクラッチパッドの $DIR にプロンプトを用意済みとする）
-claude  -p "$(cat "$DIR/prompt-claude.txt")"                       > "$DIR/out-claude.md"  2>&1
-copilot -p "$(cat "$DIR/prompt-copilot.txt")" --allow-all-tools    > "$DIR/out-copilot.md" 2>&1
-codex   exec -a never "$(cat "$DIR/prompt-codex.txt")"             > "$DIR/out-codex.md"   2>&1
+claude -p "$(cat "$DIR/prompt-claude.txt")"                     > "$DIR/out-claude.md"  2>&1
+agy    -p "$(cat "$DIR/prompt-agy.txt")"                        > "$DIR/out-agy.md"     2>&1
+codex  exec -s read-only --skip-git-repo-check \
+       "$(cat "$DIR/prompt-codex.txt")" < /dev/null             > "$DIR/out-codex.md"   2>&1
 ```
+
+`codex` の引数には注意が要る（2026-09-11 時点、codex-cli 0.153.4 で確認）。
+
+- **`-a` / `--ask-for-approval` は廃止された。** 使うと
+  `error: unexpected argument '-a' found` で即落ちる。代わりに `-s read-only`
+  （サンドボックス）を指定する。レビューはテキストを返すだけなので書き込み権限は要らない
+- **スクラッチパッドは git リポジトリの外**なので `--skip-git-repo-check` が要る。
+  無いと `Not inside a trusted directory and --skip-git-repo-check was not specified.` で落ちる
+- **`< /dev/null` で stdin を閉じる。** 閉じないと
+  `Reading additional input from stdin...` のまま入力を待って止まる
+- 出力にはプロンプト全文や実行ログがエコーされる。最終応答は**末尾の `codex` 行以降**にあるので、
+  そこを抜き出して読む
 
 3. 各出力を読み、指摘を統合する。**同じ指摘は束ね、対立する指摘は自分で判断**する。
 
 ### フォールトトレランス（重要）
 - いずれかの CLI が失敗（非ゼロ終了・エラー出力）しても**全体を止めない**。そのレビュアーだけスキップし、「◯◯はスキップ（理由）」と記録して残りで続行する。
-- **既知**: `codex` は環境によって native バイナリ欠損（ENOENT）で落ちることがある。落ちたらスキップでよい（要再インストールは別途）。
+- **既知**: CLI の引数は版によって変わる。落ちたらまず `<cli> --help` で現行の引数を確認する
+  （2026-09-11 に `codex` の `-a` 廃止でスキップが発生した。上の注意書きを参照）。
 - 最低1者のレビューが取れれば反映に進む。**全滅した場合のみ**ユーザーに知らせて指示を仰ぐ。
 - レビュアーはあくまで**別の LLM**を使うのが目的（外部の目）。この Claude 自身の自己添削で代替しない。
 
