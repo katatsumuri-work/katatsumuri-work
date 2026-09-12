@@ -7,8 +7,9 @@ name: Sync agent rules to children
 #   - 親が正本（Single Source of Truth）。子で編集したい場合は親に PR
 #   - 子 repo の main にも保護ルール（PR 必須・linear history・admin enforce）が
 #     入っているため、直 push ではなく PR を作成してその場で squash merge する
-#   - 子 repo 全体での auto-merge 機能は有効化していない（人間の通常 PR で誤爆
-#     しないため）。bot は PR API を直接叩いて即 merge する
+#   - リポジトリ設定の auto-merge は使っていない。あれは「PR ごとに auto-merge を
+#     有効化できるようにする」設定で、結局ボット側から API を叩くことになるため。
+#     作成と同時に明示的に merge するほうが何が起きるか読みやすい
 #
 # 必要な secret:
 #   SYNC_PAT - 各子 repo に push & PR 作成できる PAT
