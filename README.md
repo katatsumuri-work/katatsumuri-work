@@ -50,7 +50,8 @@ GitHub Actions が子 repo に push するため、PAT を Secrets に登録す�
 1. https://github.com/settings/personal-access-tokens/new でファイングレインド PAT を作成
    - Resource owner: `katatsumuri-work`
    - Repository access: `api`, `blog`, `web`, `infra` の 4 つを選択
-   - Repository permissions: **Contents: Read and write**, **Metadata: Read-only**（自動付与）
+   - Repository permissions: **Contents: Read and write**, **Pull requests: Read and write**, **Metadata: Read-only**（自動付与）
+     - `Pull requests` が抜けていると push は通るが `gh pr create` で落ちる。分かりにくい失敗の仕方をするので注意
 2. 生成されたトークンをコピー
 3. 親 repo の Settings → Secrets and variables → Actions → **New repository secret**
    - Name: `SYNC_PAT`
