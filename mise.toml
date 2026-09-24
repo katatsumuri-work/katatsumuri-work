@@ -1,0 +1,35 @@
+# このリポジトリで使うツールの版。
+#
+# `.tool-versions`（asdf 由来の形式）から移行した。あちらは**バックエンドを書けない**ため、
+# グローバル設定（~/.config/mise/config.toml）が backend まで指定しているツールと
+# 食い違い、`mise WARN missing:` が出続けていた。
+#   - hugo … グローバルは asdf バックエンド。`.tool-versions` の `hugo` は既定（aqua）に
+#            解決され、aqua に extended 版が無いので永久に missing だった
+#   - rust … グローバルは「rustup で管理するので mise には置かない」方針。
+#            `.tool-versions` が入れようとして空ディレクトリだけが残っていた
+#   - pnpm … 版がグローバルとずれていた（しかも入っていた 11.0.4 は pnpx/pnx を欠く
+#            不完全なインストールだった）
+
+[tools]
+# blog（Hugo）。**extended ビルドが要る。**
+#
+# バックエンドに注意。macOS 向けの Hugo は `.pkg` しか配布されていないため、
+#   - ubi    … `.pkg` を扱えない。そもそもバックエンド自体が非推奨（2027.1.0 で削除）
+#   - github … 同じ資産を見るので同様に失敗する
+#   - aqua   … `.pkg` を展開するが Bom/PackageInfo/Payload のままで bin/hugo を作らない
+#              （「✓ installed」と言うのに PATH に出ない＝壊れたインストールになる）
+# いずれも使えないので asdf バックエンドを明示する。グローバル設定と同じ指定。
+# blog の cloudbuild.yaml も extended 0.161.1 を使っているので版を揃えている。
+"asdf:NeoHsu/asdf-hugo" = "extended-0.161.1"
+
+# web（Astro / TypeScript）
+node = "24.15.0"
+pnpm = "11.15.0"
+
+# infra（Terraform）。グローバルは 1.14.6 だが、このリポジトリはこちらで作業する
+terraform = "1.15.1"
+
+# rust（api）はここに置かない。グローバル設定と同じ理由で、rustup（~/.rustup, ~/.cargo）が
+# 居ると mise の core:rust は ~/.cargo/bin へのシンボリックリンクを張るだけで版を固定
+# できない。切り替えは `rustup default <version>` を使う。
+# 版を repo で固定したいなら api 側に rust-toolchain.toml を置くのが筋。
