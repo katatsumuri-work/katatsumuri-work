@@ -216,35 +216,55 @@ draft: false              # 先積み運用なら false + 未来日。純粋な�
 
 ```bash
 # 例（スクラッチパッドの $DIR にプロンプトを用意済みとする）
-claude -p "$(cat "$DIR/prompt-claude.txt")"                     > "$DIR/out-claude.md"  2>&1
-agy    -p "$(cat "$DIR/prompt-agy.txt")"                        > "$DIR/out-agy.md"     2>&1
-codex  exec -s read-only --skip-git-repo-check \
-       "$(cat "$DIR/prompt-codex.txt")" < /dev/null             > "$DIR/out-codex.md"   2>&1
+claude -p "$(cat "$DIR/prompt-claude.txt")" < /dev/null          > "$DIR/out-claude.md"  2>&1
+agy    -p "$(cat "$DIR/prompt-agy.txt")" --sandbox --print-timeout 15m \
+                                                                 > "$DIR/out-agy.md"     2>&1
+codex  exec -s read-only --skip-git-repo-check -C "$DIR" \
+       -o "$DIR/out-codex.md" - < "$DIR/prompt-codex.txt"         > "$DIR/log-codex.txt"  2>&1
 ```
 
-`codex` の引数には注意が要る（2026-09-11 時点、codex-cli 0.153.4 で確認）。
+**`claude -p` にも `< /dev/null` が要る**（2026-10-10 に踏んだ）。付けないと
+`Warning: no stdin data received in 3s, proceeding without it.` が
+**出力ファイルの先頭に混ざる**。3 秒待ってから続行するのでレビュー自体は成功し、
+**壊れていることに気づきにくい**。
+
+**`codex` は `-o` で査読本文だけを別ファイルに書かせる**（2026-10-10 に実測）。
+`-o` なしで stdout をリダイレクトすると、**バージョン・workdir・推論トレースを含む
+262 KB** が出力ファイルに入る（`-o` ありは査読本文のみの 12.8 KB）。
+指摘を数えるときにトレースのノイズを拾うので、**本文とログは分ける**。
+`codex` の起動方法の単一の出所は `~/.claude/skills/codex`。
+
+`codex` の引数には注意が要る（2026-10-10 時点、codex-cli 0.154.0 で確認）。
 
 - **`-a` / `--ask-for-approval` は廃止された。** 使うと
   `error: unexpected argument '-a' found` で即落ちる。代わりに `-s read-only`
   （サンドボックス）を指定する。レビューはテキストを返すだけなので書き込み権限は要らない
 - **スクラッチパッドは git リポジトリの外**なので `--skip-git-repo-check` が要る。
   無いと `Not inside a trusted directory and --skip-git-repo-check was not specified.` で落ちる
-- **`< /dev/null` で stdin を閉じる。** 閉じないと
-  `Reading additional input from stdin...` のまま入力を待って止まる
-- 出力にはプロンプト全文や実行ログがエコーされる。最終応答は**末尾の `codex` 行以降**にあるので、
-  そこを抜き出して読む
+- **プロンプトは `-` で stdin から渡す。** 引数で渡す形でも動くが、その場合は
+  `< /dev/null` が必須（無いと `Reading additional input from stdin...` で止まる）。
+  査読プロンプトは 16,000 字ほどになるので、ファイル渡しのほうが素直
 
 3. 各出力を読み、指摘を統合する。**同じ指摘は束ね、対立する指摘は自分で判断**する。
 
-   出力の形は CLI ごとに違う。`codex` は**プロンプト全文と実行ログをエコーする**ので、
-   最終応答は**末尾の `codex` 行以降**を抜き出して読む。
+   **ラベルの装飾はレビュアーごとに違う。** 機械的に数えるときは行頭の
+   `-` `*` `#` `` ` `` `>` を剥がしてから判定する。実測では
+   `claude` が `- **[must]**`、`codex` が `- [must]`、`agy` が `` #### `[must]` `` だった。
+   **剥がさないと `agy` が 0 件に見えて、取りこぼしに気づけない。**
 
 ### フォールトトレランス（重要）
 - いずれかの CLI が失敗（非ゼロ終了・エラー出力）しても**全体を止めない**。そのレビュアーだけスキップし、「◯◯はスキップ（理由）」と記録して残りで続行する。
 - **既知**: CLI の引数は版によって変わる。落ちたらまず `<cli> --help` で現行の引数を確認する
   （2026-09-11 に `codex` の `-a` 廃止でスキップが発生した。上の注意書きを参照）。
+- **一時的な失敗は 1 回だけリトライしてからスキップする。** `agy` は 503 を返すことがあり、
+  2026-09-29 の記事では 1・2・5 周目が全滅した。ただし 2026-10-10 に測ったときは
+  3 者とも一発で通った（`agy` 62 秒・503 は 0 件）ので、**恒常的に不調と決めつけない**。
 - 最低1者のレビューが取れれば反映に進む。**全滅した場合のみ**ユーザーに知らせて指示を仰ぐ。
 - レビュアーはあくまで**別の LLM**を使うのが目的（外部の目）。この Claude 自身の自己添削で代替しない。
+
+**所要時間は 1 分〜4 分かかる**（2026-10-10 実測、25,836 バイトの記事で
+`agy` 62 秒 / `codex` 210 秒 / `claude` 240 秒）。**前景で待つと 2 分で打ち切られる**ので、
+バックグラウンド実行にして完了通知を待つ。
 
 ### レビューは1周で終わらせない（最重要）
 
