@@ -1,6 +1,6 @@
 ---
 name: blog-snail
-description: カタツムリワークスの blog（Hugo）記事を下書きする。~/memo の daily_report / project memo や ~/PROJECTS の実装を元ネタに、機密をぼかし・媒体トーンに整え・frontmatter を付けて blog/content/posts に書き出し、humanizer で AI っぽさを落としたうえで、agy / codex / copilot / 別の claude といった別 LLM に「編集者」として構成・言い回し・内容をレビューさせてから反映し、hugo 検証・ブランチ・PR まで通す。「記事化して」「blog ネタを記事に」「blog.snail」「稼働ログをブログに」などで使う。
+description: カタツムリワークスの blog（Hugo）記事を下書きする。~/memo の daily_report / project memo や ~/PROJECTS の実装を元ネタに、core-message-writing で想定読者と読後感を先に決め、機密をぼかし・媒体トーンに整え・frontmatter を付けて blog/content/posts に書き出し、humanizer で AI っぽさを落としたうえで、agy / codex / copilot / 別の claude といった別 LLM に「編集者」として構成・言い回し・内容をレビューさせてから反映し、hugo 検証・ブランチ・PR まで通す。「記事化して」「blog ネタを記事に」「blog.snail」「稼働ログをブログに」などで使う。
 ---
 
 # blog.snail ― 技術メモを編集者レビュー付きでブログ記事化する
